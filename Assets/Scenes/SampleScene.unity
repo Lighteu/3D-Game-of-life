@@ -350,9 +350,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4c05ed6191cfc69479238f2fa4475624, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  sizeX: 10
-  sizeY: 10
-  sizeZ: 10
+  sizeX: 50
+  sizeY: 50
+  sizeZ: 50
   underpopulationValue: 6
   overpopulationValue: 9
   reviveValues: 090000000a0000000b000000

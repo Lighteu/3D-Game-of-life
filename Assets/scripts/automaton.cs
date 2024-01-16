@@ -25,9 +25,9 @@ public class automaton : MonoBehaviour
     [SerializeField]
     [Header("Delay before each step")]
     private float stepDelay = 1f;
-    private int[,,] grid;
+    private int[] grid;
     private bool canUpdate = true;
-    private GameObject[,,] cubesPool;
+    private GameObject[] cubesPool;
     private GameObject cubePrefab;
     private CameraController cameraController;
     void Start()
@@ -36,9 +36,11 @@ public class automaton : MonoBehaviour
         this.grid = GenerateRandomArray(this.sizeX, this.sizeY, this.sizeZ);
         this.cubePrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/prefabs/Cube.prefab");
         this.cubesPool = InitialisePool();
-        this.gameObject.AddComponent<MeshFilter>();
-        this.gameObject.AddComponent<MeshRenderer>();
-        CombineMeshes(this.gameObject);
+
+        // this could work if we dive into it properly
+        // this.gameObject.AddComponent<MeshFilter>();
+        // this.gameObject.AddComponent<MeshRenderer>();
+        // CombineMeshes(this.gameObject);
         ActivateAliveCells();
     }
 
@@ -64,66 +66,60 @@ public class automaton : MonoBehaviour
     {
         GameObject cameraObject = GameObject.FindWithTag("MainCamera");
         CameraController cameraController = cameraObject.GetComponent<CameraController>();
-        cameraController.SetTarget(new Vector3(this.sizeX/2, this.sizeY/2, this.sizeZ/2));
+        cameraController.SetTarget(new Vector3(this.sizeX / 2, this.sizeY / 2, this.sizeZ / 2));
         cameraController.SetMaxZoom(2 * Math.Max(this.sizeX, Math.Max(this.sizeZ, this.sizeY)));
         cameraController.SetCurrentZoom(4.0f * (Math.Max(this.sizeX, Math.Max(this.sizeZ, this.sizeY)) / 5.0f) + cameraController.getMinZoom());
     }
 
     private void ActivateAliveCells()
     {
-        for (int x = 0; x < this.sizeX; x++)
+        for (int i = 0; i < this.sizeX * this.sizeY * this.sizeZ; i++)
         {
-            for (int y = 0; y < this.sizeY; y++)
-            {
-                for (int z = 0; z < this.sizeZ; z++)
-                {
-                    if (this.grid[x, y, z] == 1)
-                        this.cubesPool[x, y, z].SetActive(true);
-                    else
-                        this.cubesPool[x, y, z].SetActive(false);
-                }
-            }
+
+            if (this.grid[i] == 1)
+                this.cubesPool[i].SetActive(true);
+            else
+                this.cubesPool[i].SetActive(false);
+
         }
     }
 
     private void NextGen()
     {
-        int[,,] array3D = new int[sizeX, sizeY, sizeZ];
-        Parallel.For(0, this.sizeX, x =>
+        int[] array = new int[sizeX * sizeY * sizeZ];
+        Parallel.For(0, this.sizeX * this.sizeY * this.sizeZ, i =>
         {
-            for (int y = 0; y < this.sizeY; y++)
+
+            int aliveNeighbours = CountAliveNeighbours(i);
+            if (this.grid[i] == 1)
             {
-                for (int z = 0; z < this.sizeZ; z++)
+                if (aliveNeighbours <= this.overpopulationValue && aliveNeighbours >= this.underpopulationValue)
                 {
-                    int aliveNeighbours = CountAliveNeighbours(x, y, z);
-                    if (this.grid[x, y, z] == 1)
-                    {
-                        if (aliveNeighbours <= this.overpopulationValue && aliveNeighbours >= this.underpopulationValue)
-                        {
-                            array3D[x, y, z] = 1;
-                        }
-                        else if (aliveNeighbours < this.underpopulationValue || aliveNeighbours > this.overpopulationValue)
-                        {
-                            array3D[x, y, z] = 0;
-                        }
-                    }
-                    else
-                    {
-                        if (Array.Exists(this.reviveValues, element => element == aliveNeighbours))
-                        {
-                            array3D[x, y, z] = 1;
-                        }
-                    }
+                    array[i] = 1;
+                }
+                else if (aliveNeighbours < this.underpopulationValue || aliveNeighbours > this.overpopulationValue)
+                {
+                    array[i] = 0;
                 }
             }
+            else
+            {
+                if (Array.Exists(this.reviveValues, element => element == aliveNeighbours))
+                {
+                    array[i] = 1;
+                }
+            }
+
         });
-        this.grid = array3D;
+        this.grid = array;
     }
 
 
-    private int CountAliveNeighbours(int x, int y, int z)
+    private int CountAliveNeighbours(int index)
     {
         int result = 0;
+        (int x, int y, int z) = this.To3D(index);
+
         for (int i = Math.Max(0, x - 1); i < Math.Min(this.sizeX, x + 2); i++)
         {
             for (int j = Math.Max(0, y - 1); j < Math.Min(this.sizeY, y + 2); j++)
@@ -133,27 +129,26 @@ public class automaton : MonoBehaviour
                     if (i == x && j == y && k == z)
                         continue;
 
-                    result += this.grid[i, j, k];
+                    int neighbourIndex = this.To1D(i, j, k);
+                    result += this.grid[neighbourIndex];
                 }
             }
         }
+
         return result;
     }
 
-    public static int[,,] GenerateRandomArray(int sizeX, int sizeY, int sizeZ)
+
+    public static int[] GenerateRandomArray(int sizeX, int sizeY, int sizeZ)
     {
-        int[,,] array3D = new int[sizeX, sizeY, sizeZ];
-        for (int x = 0; x < sizeX; x++)
+        int[] array = new int[sizeX * sizeY * sizeZ];
+        for (int i = 0; i < sizeX * sizeY * sizeZ; i++)
         {
-            for (int y = 0; y < sizeY; y++)
-            {
-                for (int z = 0; z < sizeZ; z++)
-                {
-                    array3D[x, y, z] = UnityEngine.Random.Range(0, 2);
-                }
-            }
+
+            array[i] = UnityEngine.Random.Range(0, 2);
+
         }
-        return array3D;
+        return array;
     }
 
     private GameObject CreateCube(Vector3 position, float size)
@@ -184,18 +179,14 @@ public class automaton : MonoBehaviour
     }
 
 
-    private GameObject[,,] InitialisePool()
+    private GameObject[] InitialisePool()
     {
-        GameObject[,,] result = new GameObject[this.sizeX, this.sizeY, this.sizeZ];
-        for (int x = 0; x < this.sizeX; x++)
+        GameObject[] result = new GameObject[this.sizeX * this.sizeY * this.sizeZ];
+        for (int i = 0; i < this.sizeX * this.sizeY * this.sizeZ; i++)
         {
-            for (int y = 0; y < this.sizeY; y++)
-            {
-                for (int z = 0; z < this.sizeZ; z++)
-                {
-                    result[x, y, z] = CreateCube(new Vector3(x, y, z), 1f);
-                }
-            }
+            (int x, int y, int z) = this.To3D(i);
+            result[i] = CreateCube(new Vector3(x, y, z), 1f);
+
         }
         return result;
     }
@@ -207,5 +198,20 @@ public class automaton : MonoBehaviour
             Destroy(child.gameObject);
         }
     }
+
+    public int To1D(int x, int y, int z)
+    {
+        return x + (y * this.sizeX) + (z * this.sizeX * this.sizeY);
+    }
+
+    public (int, int, int) To3D(int i)
+    {
+        int z = i / (this.sizeX * this.sizeY);
+        i %= this.sizeX * this.sizeY;
+        int y = i / this.sizeX;
+        int x = i % this.sizeX;
+        return (x, y, z);
+    }
+
 
 }
