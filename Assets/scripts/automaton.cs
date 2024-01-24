@@ -1,8 +1,10 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEditor;
+using System.Diagnostics;
 
 public class automaton : MonoBehaviour
 {
@@ -25,41 +27,37 @@ public class automaton : MonoBehaviour
     [SerializeField]
     [Header("Delay before each step")]
     private float stepDelay = 1f;
+
+    public ComputeShader computeShader;
     private int[] grid;
-    private bool canUpdate = true;
     private GameObject[] cubesPool;
+    private List<List<Matrix4x4>> batches = new List<List<Matrix4x4>>();
+    public Material[] materials;
+    public Mesh mesh;
     private GameObject cubePrefab;
     private CameraController cameraController;
+    private float updateCounter = 0;
     void Start()
     {
+        this.updateCounter = this.stepDelay;
         SetupTheCameraTarget();
-        this.grid = GenerateRandomArray(this.sizeX, this.sizeY, this.sizeZ);
-        this.cubePrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/prefabs/Cube.prefab");
-        this.cubesPool = InitialisePool();
-
-        // this could work if we dive into it properly
-        // this.gameObject.AddComponent<MeshFilter>();
-        // this.gameObject.AddComponent<MeshRenderer>();
-        // CombineMeshes(this.gameObject);
-        ActivateAliveCells();
+        this.GenerateRandomBatches();
+        
     }
 
 
     void Update()
     {
-        if (this.canUpdate)
+        if(this.updateCounter <= 0)
         {
-            StartCoroutine(DelayUpdate());
+            this.GenerateRandomBatches();
+            this.updateCounter = this.stepDelay;
         }
-    }
-
-    IEnumerator DelayUpdate()
-    {
-        this.canUpdate = false;
-        yield return new WaitForSeconds(this.stepDelay);
-        NextGen();
-        ActivateAliveCells();
-        this.canUpdate = true;
+        else
+        {
+            this.updateCounter -= Time.deltaTime;
+        }
+        RenderBatches();
     }
 
     private void SetupTheCameraTarget()
@@ -84,6 +82,16 @@ public class automaton : MonoBehaviour
         }
     }
 
+    private void NextGenComputeShader()
+    {
+        ComputeBuffer computeBuffer = new ComputeBuffer(this.grid.Length , sizeof (int));
+        computeBuffer.SetData(this.grid);
+
+        computeShader.SetBuffer(0, "Result", computeBuffer);
+        computeShader.Dispatch(0, this.grid.Length / 64, 1, 1);
+        computeBuffer.GetData(this.grid);
+        computeBuffer.Dispose();
+    }
     private void NextGen()
     {
         int[] array = new int[sizeX * sizeY * sizeZ];
@@ -151,32 +159,35 @@ public class automaton : MonoBehaviour
         return array;
     }
 
+    private void GenerateRandomBatches()
+    {
+        int size = this.sizeX * this.sizeY * this.sizeZ;
+        this.batches = new List<List<Matrix4x4>>();
+        for (int i = 0; i < Math.Floor((double)(size / 1000)); i++)
+        {
+            List<Matrix4x4> temporary = new List<Matrix4x4>();
+            for (int j = 0; j < Math.Min(1000, size - (i+1)*1000); j++)
+            {
+                int choice = UnityEngine.Random.Range(0, 2);
+                if(choice == 1)
+                {
+                    (int x, int y, int z) = this.To3D(i*1000 + j);
+                    temporary.Add(Matrix4x4.TRS(new Vector3(x, y ,z), Quaternion.identity, new Vector3(1,1,1)));
+                }   
+            }
+            this.batches.Add(temporary);
+        }
+    }
+
     private GameObject CreateCube(Vector3 position, float size)
     {
         GameObject cube = Instantiate(this.cubePrefab, position, Quaternion.identity);
         cube.transform.localScale = new Vector3(size, size, size);
-
         cube.transform.SetParent(this.transform);
         cube.SetActive(false);
         return cube;
     }
 
-    private void CombineMeshes(GameObject parentObject)
-    {
-        MeshFilter[] meshFilters = parentObject.GetComponentsInChildren<MeshFilter>();
-        CombineInstance[] combine = new CombineInstance[meshFilters.Length];
-
-        for (int i = 0; i < meshFilters.Length; i++)
-        {
-            combine[i].mesh = meshFilters[i].sharedMesh;
-            combine[i].transform = meshFilters[i].transform.localToWorldMatrix;
-            meshFilters[i].gameObject.SetActive(false);
-        }
-
-        parentObject.transform.GetComponent<MeshFilter>().mesh = new Mesh();
-        parentObject.transform.GetComponent<MeshFilter>().mesh.CombineMeshes(combine);
-        parentObject.transform.gameObject.SetActive(true);
-    }
 
 
     private GameObject[] InitialisePool()
@@ -191,13 +202,7 @@ public class automaton : MonoBehaviour
         return result;
     }
 
-    private void ClearCubes()
-    {
-        foreach (Transform child in transform)
-        {
-            Destroy(child.gameObject);
-        }
-    }
+
 
     public int To1D(int x, int y, int z)
     {
@@ -211,6 +216,17 @@ public class automaton : MonoBehaviour
         int y = i / this.sizeX;
         int x = i % this.sizeX;
         return (x, y, z);
+    }
+
+    private void RenderBatches()
+    {
+        foreach (var batch in this.batches)
+        {
+            for(int i = 0; i < mesh.subMeshCount; i++)
+            {
+                Graphics.DrawMeshInstanced(this.mesh, i, this.materials[i], batch);
+            }
+        }
     }
 
 

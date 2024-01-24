@@ -356,7 +356,11 @@ MonoBehaviour:
   underpopulationValue: 6
   overpopulationValue: 9
   reviveValues: 090000000a0000000b000000
-  stepDelay: 1
+  stepDelay: 2
+  computeShader: {fileID: 7200000, guid: 949cd383c0608bc458b28f86d71a05c4, type: 3}
+  materials:
+  - {fileID: 2100000, guid: f19cacfaed128bb4baa16a5939573cf1, type: 2}
+  mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!4 &963236538
 Transform:
   m_ObjectHideFlags: 0
